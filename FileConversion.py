@@ -25,11 +25,10 @@ max_height = st.sidebar.number_input("Max Height (px)", value=1920, step=100)
 initial_quality = st.sidebar.number_input("Initial Quality", value=80, min_value=1, max_value=100, step=1)
 
 # Target size in MB (convert to bytes internally)
-target_size_mb = st.sidebar.number_input("Target Size (MB)", value=1.0, step=0.1, format="%.2f")
+target_size_mb = st.sidebar.number_input("Target Size (MB)", value=0.8, step=0.1, format="%.2f")
 target_size = int(target_size_mb * 1024 * 1024)
 
 output_format = st.sidebar.selectbox("Output Format", ["WEBP", "AVIF"])  # new format selection
-
 
 # Upload & Refresh buttons
 col1, col2 = st.columns([4, 1])
@@ -75,12 +74,15 @@ if st.session_state.uploaded_files:
                     temp_quality = initial_quality
                     img_bytes = io.BytesIO()
 
+                    # Keep lowering quality until target size in MB is met
                     while temp_quality >= MIN_QUALITY:
                         img_bytes.seek(0)
                         img.save(img_bytes, output_format.lower(), quality=temp_quality)
                         size = img_bytes.tell()
+
                         if size <= target_size:
                             break
+
                         temp_quality -= QUALITY_STEP
 
                     img_bytes.seek(0)
