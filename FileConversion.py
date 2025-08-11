@@ -23,8 +23,13 @@ st.sidebar.header("⚙️ Conversion Settings")
 max_width = st.sidebar.number_input("Max Width (px)", value=1920, step=100)
 max_height = st.sidebar.number_input("Max Height (px)", value=1920, step=100)
 initial_quality = st.sidebar.number_input("Initial Quality", value=80, min_value=1, max_value=100, step=1)
-target_size = st.sidebar.number_input("Target Size (bytes)", value=800000, step=50000)
+
+# Target size in MB (convert to bytes internally)
+target_size_mb = st.sidebar.number_input("Target Size (MB)", value=1.0, step=0.1, format="%.2f")
+target_size = int(target_size_mb * 1024 * 1024)
+
 output_format = st.sidebar.selectbox("Output Format", ["WEBP", "AVIF"])  # new format selection
+
 
 # Upload & Refresh buttons
 col1, col2 = st.columns([4, 1])
