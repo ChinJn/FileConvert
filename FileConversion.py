@@ -1,3 +1,5 @@
+# webp or avif file
+
 import streamlit as st
 from PIL import Image, ImageFile
 import io
@@ -6,37 +8,42 @@ import zipfile
 # Allow truncated images
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-st.title("📷 Image to WebP Converter with Custom Size Limit")
+st.title("📷 Image Converter to WebP or AVIF")
 
-# Settings
-max_width = 1920
-max_height = 1920
-initial_quality = 80
-min_quality = 10
-quality_step = 5
-allowed_extensions = ('.jpg', '.jpeg', '.png', '.tif', '.tiff')
+# Session state for uploads
+if "uploaded_files" not in st.session_state:
+    st.session_state.uploaded_files = None
 
-# Preset sizes (KB)
-size_presets = {
-    "200 KB": 200 * 1024,
-    "500 KB": 500 * 1024,
-    "800 KB (default)": 800 * 1024,
-    "1 MB": 1024 * 1024
-}
+# Fixed settings
+QUALITY_STEP = 5
+MIN_QUALITY = 10  # fixed min quality
 
-# Size selection UI
-preset_choice = st.selectbox("Choose target file size:", list(size_presets.keys()), index=2)
-custom_size_kb = st.number_input("Or enter your own size (KB):", value=size_presets[preset_choice] // 1024, step=50)
-target_size = int(custom_size_kb * 1024)  # Convert to bytes
+# Sidebar: adjustable settings
+st.sidebar.header("⚙️ Conversion Settings")
+max_width = st.sidebar.number_input("Max Width (px)", value=1920, step=100)
+max_height = st.sidebar.number_input("Max Height (px)", value=1920, step=100)
+initial_quality = st.sidebar.number_input("Initial Quality", value=80, min_value=1, max_value=100, step=1)
+target_size = st.sidebar.number_input("Target Size (bytes)", value=800000, step=50000)
+output_format = st.sidebar.selectbox("Output Format", ["WEBP", "AVIF"])  # new format selection
 
-# Upload multiple files
-uploaded_files = st.file_uploader(
-    "Upload your images", 
-    type=[ext.replace('.', '') for ext in allowed_extensions], 
-    accept_multiple_files=True
-)
+# Upload & Refresh buttons
+col1, col2 = st.columns([4, 1])
+with col1:
+    uploaded_files = st.file_uploader(
+        "Upload your images",
+        type=["jpg", "jpeg", "png", "tif", "tiff"],
+        accept_multiple_files=True
+    )
+with col2:
+    if st.button("🔄 Refresh"):
+        st.session_state["uploaded_files"] = None
+        st.rerun()
 
-# Resize function
+# Store uploaded files in session
+if uploaded_files:
+    st.session_state.uploaded_files = uploaded_files
+
+# Resize helper
 def resize_image(img, max_w, max_h):
     width, height = img.size
     aspect_ratio = width / height
@@ -50,39 +57,38 @@ def resize_image(img, max_w, max_h):
         return img.resize((new_width, new_height), Image.LANCZOS)
     return img
 
-if uploaded_files:
-    # Prepare ZIP in memory
-    zip_buffer = io.BytesIO()
-    with zipfile.ZipFile(zip_buffer, "w") as zip_file:
-        for file in uploaded_files:
-            try:
-                img = Image.open(file).convert("RGB")
-                img = resize_image(img, max_width, max_height)
+# Convert button
+if st.session_state.uploaded_files:
+    if st.button("🚀 Convert"):
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zip_file:
+            for file in st.session_state.uploaded_files:
+                try:
+                    img = Image.open(file).convert("RGB")
+                    img = resize_image(img, max_width, max_height)
 
-                # Compress until within target size
-                temp_quality = initial_quality
-                img_bytes = io.BytesIO()
+                    temp_quality = initial_quality
+                    img_bytes = io.BytesIO()
 
-                while temp_quality >= min_quality:
+                    while temp_quality >= MIN_QUALITY:
+                        img_bytes.seek(0)
+                        img.save(img_bytes, output_format.lower(), quality=temp_quality)
+                        size = img_bytes.tell()
+                        if size <= target_size:
+                            break
+                        temp_quality -= QUALITY_STEP
+
                     img_bytes.seek(0)
-                    img.save(img_bytes, 'webp', quality=temp_quality)
-                    size = img_bytes.tell()
-                    if size <= target_size:
-                        break
-                    temp_quality -= quality_step
+                    output_filename = file.name.rsplit(".", 1)[0] + f".{output_format.lower()}"
+                    zip_file.writestr(output_filename, img_bytes.read())
 
-                # Add to ZIP
-                img_bytes.seek(0)
-                output_filename = file.name.rsplit(".", 1)[0] + ".webp"
-                zip_file.writestr(output_filename, img_bytes.read())
+                except Exception as e:
+                    st.error(f"❌ Error processing {file.name}: {e}")
 
-            except Exception as e:
-                st.error(f"❌ Error processing {file.name}: {e}")
-
-    zip_buffer.seek(0)
-    st.download_button(
-        label="📥 Download All Converted Images (ZIP)",
-        data=zip_buffer,
-        file_name="converted_images.zip",
-        mime="application/zip"
-    )
+        zip_buffer.seek(0)
+        st.download_button(
+            label=f"📥 Download All Converted Images as {output_format} (ZIP)",
+            data=zip_buffer,
+            file_name=f"converted_images_{output_format.lower()}.zip",
+            mime="application/zip"
+        )
