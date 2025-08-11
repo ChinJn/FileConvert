@@ -40,8 +40,15 @@ with col1:
     )
 with col2:
     if st.button("🔄 Refresh"):
-        st.session_state["uploaded_files"] = None
-        st.rerun()
+        # Force a full browser reload
+        st.markdown(
+            """
+            <meta http-equiv="refresh" content="0">
+            """,
+            unsafe_allow_html=True
+        )
+
+
 
 # Store uploaded files in session
 if uploaded_files:
